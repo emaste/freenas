@@ -405,17 +405,18 @@ save_serial_settings()
     local CON_MASK=$((RB_SERIAL | RB_MULTIPLE))
 
     local _boothowto=$(sysctl -n debug.boothowto)
-
-    # If the installer was booted with multicons/serial mode enabled,
-    # we should save these values to the installed system.
     case $((_boothowto & CON_MASK)) in
-    $VIDEO_ONLY|$SERIAL_ONLY)
+    $VIDEO_ONLY|$VID_SER_BOTH)
+	# Do nothing if we booted with video as the primary console.
 	return 0
 	;;
-    $VID_SER_BOTH)
+    $SERIAL_ONLY)
+	# This may be the case when we use the serial boot menu entry and
+	# efi has a serial port.  We enable only comconsole to prevent output
+	# from being duplicated.  Or we really only have a serial port.
 	cat >> ${_mnt}/boot/loader.conf.local <<EOF
-boot_multicons="YES"
-console="$(videoconsole),comconsole"
+boot_serial="YES"
+console="comconsole"
 EOF
 	;;
     $SER_VID_BOTH)
@@ -429,6 +430,7 @@ EOF
 
     local _port=$(kenv hw.uart.console | sed -En 's/.*io:([0-9a-fx]+).*/\1/p')
     if [ -n "${_port}" ] ; then
+	echo "comconsole_port=\"${_port}\"" >> ${_mnt}/boot/loader.conf.local
 	nasdb ${_mnt} "update system_advanced set adv_serialport = '${_port}'"
     fi
 
